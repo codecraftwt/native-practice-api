@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const { me, updateMe } = require('../controllers/tenants.controller');
+const { protect, authorize } = require('../middleware/auth');
 
-router.get('/', (req, res) => res.json({ message: 'route stub' }));
-router.post('/', (req, res) => res.json({ message: 'route stub' }));
+router.use(protect);
+
+router.get('/me', me);
+router.patch('/me', authorize('settings:update'), updateMe);
 
 module.exports = router;

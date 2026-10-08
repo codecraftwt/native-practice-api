@@ -21,7 +21,16 @@ const seed = async () => {
 
   let tenant = await Tenant.findOne({ name: DEMO_TENANT });
   if (!tenant) {
-    tenant = await Tenant.create({ name: DEMO_TENANT });
+    tenant = await Tenant.create({
+      name: DEMO_TENANT,
+      email: 'hello@dineflow.test',
+      phone: '+91 98765 43210',
+      address: '42 Residency Road, Bengaluru, KA 560025',
+      gstNumber: '29ABCDE1234F1Z5',
+      timezone: 'Asia/Kolkata',
+      hours: { open: '09:00', close: '23:00' },
+      settings: { currency: 'INR', taxRate: 5, serviceChargeRate: 7.5 },
+    });
     console.log(`Created tenant: ${tenant.name}`);
   } else {
     console.log(`Tenant already exists: ${tenant.name}`);

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { AppError } = require('./errorHandler');
+const { hasPermission } = require('../config/permissions');
 
 const protect = (req, res, next) => {
   let token;
@@ -19,9 +20,12 @@ const protect = (req, res, next) => {
   }
 };
 
-const authorize = (...roles) => {
+const authorize = (...perms) => {
   return (req, res, next) => {
-    if (!req.user || (roles.length && !roles.includes(req.user.role))) {
+    if (!req.user || !req.user.role) {
+      return next(new AppError('Not authorized to access this route', 403));
+    }
+    if (perms.length && !perms.some((perm) => hasPermission(req.user.role, perm))) {
       return next(new AppError('Not authorized to access this route', 403));
     }
     next();
