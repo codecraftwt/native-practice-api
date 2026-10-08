@@ -45,8 +45,19 @@ const registerTenant = async (restaurantName, name, email) => {
 const cleanup = async () => {
   const Tenant = require('../src/models/tenant.model');
   const User = require('../src/models/user.model');
-  await User.deleteMany({ email: { $regex: `\\.iso-` } });
-  await Tenant.deleteMany({ name: { $regex: `^Iso Tenant [AB] ` } });
+  const Floor = require('../src/models/floor.model');
+  const Section = require('../src/models/section.model');
+  const Table = require('../src/models/table.model');
+  const isoTenants = await Tenant.find({ name: { $regex: '^Iso Tenant [AB] ' } }, { _id: 1 });
+  const ids = isoTenants.map((t) => t._id);
+  if (ids.length) {
+    await Table.deleteMany({ tenantId: { $in: ids } });
+    await Section.deleteMany({ tenantId: { $in: ids } });
+    await Floor.deleteMany({ tenantId: { $in: ids } });
+    await User.deleteMany({ tenantId: { $in: ids } });
+    await Tenant.deleteMany({ _id: { $in: ids } });
+  }
+  await User.deleteMany({ email: { $regex: '-iso-' } });
 };
 
 const main = async () => {
@@ -109,6 +120,67 @@ const main = async () => {
   const malloryId = bCreateInA.json?.data?.user?.id;
   const aSeesMallory = await api(`/users/${malloryId}`, { token: a.accessToken });
   check('A cannot read B staff by id (404)', aSeesMallory.status === 404, `status=${aSeesMallory.status}`);
+
+  const floorA = await api('/floors', {
+    method: 'POST',
+    token: a.accessToken,
+    body: { name: 'Iso Floor A' },
+  });
+  check('Tenant A creates own floor', floorA.status === 201, `status=${floorA.status}`);
+  const floorAId = floorA.json?.data?.floor?.id;
+
+  const tableA = await api('/tables', {
+    method: 'POST',
+    token: a.accessToken,
+    body: { floorId: floorAId, tableNumber: 'ISO-1', capacity: 4 },
+  });
+  check('Tenant A creates own table', tableA.status === 201, `status=${tableA.status}`);
+  const tableAId = tableA.json?.data?.table?.id;
+
+  const floorsA = await api('/floors', { token: a.accessToken });
+  const floorsB = await api('/floors', { token: b.accessToken });
+  check(
+    'A sees only A floors',
+    (floorsA.json?.data?.floors || []).every((f) => f.name === 'Iso Floor A'),
+    `count=${(floorsA.json?.data?.floors || []).length}`,
+  );
+  check(
+    'B floor list does not contain A floor',
+    !(floorsB.json?.data?.floors || []).some((f) => f.id === floorAId),
+  );
+
+  const bFloorRead = await api(`/floors/${floorAId}`, { token: b.accessToken });
+  check('B cannot read A floor by id (404)', bFloorRead.status === 404, `status=${bFloorRead.status}`);
+
+  const bTableRead = await api(`/tables/${tableAId}`, { token: b.accessToken });
+  check('B cannot read A table by id (404)', bTableRead.status === 404, `status=${bTableRead.status}`);
+
+  const bTablePatch = await api(`/tables/${tableAId}`, {
+    method: 'PATCH',
+    token: b.accessToken,
+    body: { capacity: 10 },
+  });
+  check('B cannot update A table by id (404)', bTablePatch.status === 404, `status=${bTablePatch.status}`);
+
+  const bTableStatus = await api(`/tables/${tableAId}/status`, {
+    method: 'PATCH',
+    token: b.accessToken,
+    body: { status: 'OCCUPIED' },
+  });
+  check('B cannot change A table status (404)', bTableStatus.status === 404, `status=${bTableStatus.status}`);
+
+  const tablesB = await api('/tables', { token: b.accessToken });
+  check(
+    'B table list does not contain A table',
+    !(tablesB.json?.data?.tables || []).some((t) => t.id === tableAId),
+  );
+
+  const aTableAfter = await api(`/tables/${tableAId}`, { token: a.accessToken });
+  check(
+    'A table unchanged after B attempts',
+    aTableAfter.status === 200 && aTableAfter.json?.data?.table?.capacity === 4,
+    `capacity=${aTableAfter.json?.data?.table?.capacity}`,
+  );
 
   await cleanup();
   await mongoose.disconnect();

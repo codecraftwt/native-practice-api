@@ -2,6 +2,9 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Tenant = require('./models/tenant.model');
 const User = require('./models/user.model');
+const Floor = require('./models/floor.model');
+const Section = require('./models/section.model');
+const Table = require('./models/table.model');
 
 const DEMO_TENANT = 'DineFlow Demo Restaurant';
 const DEMO_PASSWORD = process.env.SEED_PASSWORD || 'Dineflow@123';
@@ -50,6 +53,60 @@ const seed = async () => {
       role: u.role,
     });
     console.log(`Created: ${u.email} [${u.role}]`);
+  }
+
+  const floorCount = await Floor.countDocuments({ tenantId: tenant._id });
+  if (floorCount === 0) {
+    const ground = await Floor.create({
+      tenantId: tenant._id,
+      name: 'Ground Floor',
+      description: 'Main dining and patio',
+      displayOrder: 1,
+    });
+    const first = await Floor.create({
+      tenantId: tenant._id,
+      name: 'First Floor',
+      description: 'Family section',
+      displayOrder: 2,
+    });
+    const mainHall = await Section.create({
+      tenantId: tenant._id,
+      floorId: ground._id,
+      name: 'Main Hall',
+      displayOrder: 1,
+    });
+    const patio = await Section.create({
+      tenantId: tenant._id,
+      floorId: ground._id,
+      name: 'Patio',
+      displayOrder: 2,
+    });
+    const family = await Section.create({
+      tenantId: tenant._id,
+      floorId: first._id,
+      name: 'Family Section',
+      displayOrder: 1,
+    });
+    const plan = [
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T1', capacity: 4, status: 'AVAILABLE' },
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T2', capacity: 4, status: 'OCCUPIED' },
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T3', capacity: 6, status: 'AVAILABLE' },
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T4', capacity: 4, status: 'OCCUPIED' },
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T5', capacity: 6, status: 'AVAILABLE' },
+      { floorId: ground._id, sectionId: mainHall._id, tableNumber: 'T6', capacity: 2, status: 'OCCUPIED' },
+      { floorId: ground._id, sectionId: patio._id, tableNumber: 'T7', capacity: 2, status: 'AVAILABLE' },
+      { floorId: ground._id, sectionId: patio._id, tableNumber: 'T8', capacity: 4, status: 'RESERVED' },
+      { floorId: ground._id, sectionId: patio._id, tableNumber: 'T9', capacity: 4, status: 'AVAILABLE' },
+      { floorId: first._id, sectionId: family._id, tableNumber: 'T10', capacity: 6, status: 'BILLING' },
+      { floorId: first._id, sectionId: family._id, tableNumber: 'T11', capacity: 6, status: 'AVAILABLE' },
+      { floorId: first._id, sectionId: family._id, tableNumber: 'T12', capacity: 4, status: 'OUT_OF_SERVICE' },
+    ];
+    await Table.insertMany(
+      plan.map((t) => ({ tenantId: tenant._id, ...t }))
+    );
+    console.log('Created floor plan: 2 floors, 3 sections, 12 tables');
+  } else {
+    console.log('Floor plan already exists - skipped');
   }
 
   console.log('\nSeed complete.');
